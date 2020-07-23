@@ -38,13 +38,37 @@
 #include <ESPAsyncWebServer.h>
 #include <Print.h>
 
+#include <esp_heap_caps.h>
+
+
+
+
+
 #if ARDUINOJSON_VERSION_MAJOR == 5
   #define ARDUINOJSON_5_COMPATIBILITY
 #else
   #define DYNAMIC_JSON_DOCUMENT_SIZE  1024
 #endif
 
+
+
+
 constexpr const char* JSON_MIMETYPE = "application/json";
+
+
+/*
+ * SpiRam Json doc type
+ * */
+struct SpiRamAllocator {
+  void* allocate(size_t size) {
+    return heap_caps_malloc(size, MALLOC_CAP_SPIRAM);
+  }
+  void deallocate(void* pointer) {
+    heap_caps_free(pointer);
+  }
+};
+
+typedef  BasicJsonDocument<SpiRamAllocator> SpiRamJsonDocument;
 
 /*
  * Json Response
@@ -83,7 +107,7 @@ class AsyncJsonResponse: public AsyncAbstractResponse {
 #ifdef ARDUINOJSON_5_COMPATIBILITY
     DynamicJsonBuffer _jsonBuffer;
 #else
-    DynamicJsonDocument _jsonBuffer;
+    SpiRamJsonDocument _jsonBuffer;
 #endif
 
     JsonVariant _root;
@@ -219,7 +243,7 @@ public:
         JsonVariant json = jsonBuffer.parse((uint8_t*)(request->_tempObject));
         if (json.success()) {
 #else
-        DynamicJsonDocument jsonBuffer(this->maxJsonBufferSize);
+        SpiRamJsonDocument jsonBuffer(this->maxJsonBufferSize);
         DeserializationError error = deserializeJson(jsonBuffer, (uint8_t*)(request->_tempObject));
         if(!error) {
           JsonVariant json = jsonBuffer.as<JsonVariant>();
